@@ -5,14 +5,14 @@ import { SymbolWeight } from 'expo-symbols';
 import React from 'react';
 import { OpaqueColorValue, StyleProp, ViewStyle } from 'react-native';
 
-// Add your SFSymbol to MaterialIcons mappings here.
 const MAPPING = {
-  // See MaterialIcons here: https://icons.expo.fyi
-  // See SF Symbols in the SF Symbols app on Mac.
-  'house.fill': 'home',
-  'paperplane.fill': 'send',
-  'chevron.left.forwardslash.chevron.right': 'code',
-  'chevron.right': 'chevron-right',
+  "house.fill": "home",
+  search: "search",
+  add: "add-circle-outline",
+  heart: "favorite-border",
+  "heart.fill": "favorite",
+  "person.fill": "person",
+  person: "person-outline",
 } as Partial<
   Record<
     import('expo-symbols').SymbolViewProps['name'],
