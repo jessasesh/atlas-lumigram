@@ -7,20 +7,21 @@ import {
   Pressable,
   StyleSheet,
   Alert,
+  ActivityIndicator,
 } from "react-native";
 import * as ImagePicker from "expo-image-picker";
+import { uploadImageToStorage } from "@/lib/Storage";
+import { addPost } from "@/lib/Firestore";
 
 export default function AddPostScreen() {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [caption, setCaption] = useState("");
+  const [loading, setLoading] = useState(false);
+
   const pickImage = async () => {
-    let permissionResult =
-      await ImagePicker.requestMediaLibraryPermissionsAsync();
+    let permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permissionResult.granted) {
-      Alert.alert(
-        "Permission Denied",
-        "You need to grant access to the photo library."
-      );
+      Alert.alert("Permission Denied", "You need to grant access to the photo library.");
       return;
     }
 
@@ -36,18 +37,27 @@ export default function AddPostScreen() {
     }
   };
 
-  const handlePost = () => {
-    if (!selectedImage) {
-      Alert.alert(
-        "No Image Selected",
-        "Please select an image before posting."
-      );
+  const handlePost = async () => {
+    if (!selectedImage || caption.trim() === "") {
+      Alert.alert("Error", "Please select an image and enter a caption.");
       return;
     }
-    Alert.alert("Post Added!", `${caption}`);
-    setSelectedImage(null);
-    setCaption("");
-  };
+  
+    setLoading(true);
+    try {
+      const imageUrl = await uploadImageToStorage(selectedImage);
+  
+      await addPost(imageUrl, caption);
+  
+      Alert.alert("Success", "Post added successfully!");
+      setSelectedImage(null);
+      setCaption("");
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Something went wrong.";
+      Alert.alert("Upload Failed", errorMessage);
+    }
+    setLoading(false);
+  };  
 
   return (
     <View style={styles.container}>
@@ -58,6 +68,7 @@ export default function AddPostScreen() {
           <Text style={styles.imageText}>Tap to select an image</Text>
         )}
       </Pressable>
+
       <TextInput
         style={styles.input}
         placeholder="Add a caption"
@@ -66,17 +77,11 @@ export default function AddPostScreen() {
         onChangeText={setCaption}
       />
 
-      <Pressable onPress={handlePost} style={styles.saveButton}>
-        <Text style={styles.saveButtonText}>Save</Text>
+      <Pressable onPress={handlePost} style={styles.saveButton} disabled={loading}>
+        {loading ? <ActivityIndicator color="white" /> : <Text style={styles.saveButtonText}>Save</Text>}
       </Pressable>
 
-      <Pressable
-        onPress={() => {
-          setSelectedImage(null);
-          setCaption("");
-        }}
-        style={styles.resetButton}
-      >
+      <Pressable onPress={() => { setSelectedImage(null); setCaption(""); }} style={styles.resetButton}>
         <Text style={styles.resetText}>Reset</Text>
       </Pressable>
     </View>
@@ -110,7 +115,6 @@ const styles = StyleSheet.create({
   },
   input: {
     width: "100%",
-    backgroundColor: "transparent",
     borderWidth: 1.5,
     borderColor: "#00D4B1",
     color: "black",
