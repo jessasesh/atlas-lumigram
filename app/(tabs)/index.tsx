@@ -1,53 +1,78 @@
-import React, { useState } from "react";
-import { View, Text, Image, Alert, StyleSheet, Dimensions } from "react-native";
+import React, { useState, useEffect } from "react";
+import { View, Text, Image, ActivityIndicator, StyleSheet, Alert, Dimensions } from "react-native";
 import { FlashList } from "@shopify/flash-list";
-import {
-  GestureHandlerRootView,
-  TapGestureHandler,
-  LongPressGestureHandler,
-  State,
-} from "react-native-gesture-handler";
-import { homeFeed } from "../../placeholder";
+import { fetchPosts, addToFavorites } from "@/lib/Firestore";
+import { GestureHandlerRootView, TapGestureHandler, LongPressGestureHandler, State } from "react-native-gesture-handler";
 
 const screenWidth = Dimensions.get("window").width;
 
 export default function HomeScreen() {
+  const [posts, setPosts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [lastVisible, setLastVisible] = useState<any | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [captions, setCaptions] = useState<{ [key: string]: boolean }>({});
 
+  useEffect(() => {
+    loadPosts();
+  }, []);
+
+  const loadPosts = async (refresh = false) => {
+    setLoading(true);
+    try {
+      const data = await fetchPosts(refresh ? null : lastVisible);
+      if (refresh) {
+        setPosts(data.posts);
+      } else {
+        setPosts((prev) => [...prev, ...data.posts]);
+      }
+      setLastVisible(data.lastVisible);
+    } catch (error) {
+      Alert.alert("Failed to load posts", error.message);
+    }
+    setLoading(false);
+  };
+
+  // ✅ Toggle caption visibility (same as before)
   const toggleCaption = (id: string, state: number) => {
     if (state === State.ACTIVE) {
-      setCaptions((prevState) => ({
-        ...prevState,
-        [id]: !prevState[id],
+      setCaptions((prev) => ({
+        ...prev,
+        [id]: !prev[id],
       }));
     }
   };
 
-  const handleDoubleTap = () => {
-    Alert.alert(
-      "Favorited",
-      "This will favorite the image in the next project."
-    );
+  // ✅ Double Tap to Favorite
+  const handleDoubleTap = async (postId: string, imageUrl: string, caption: string) => {
+    await addToFavorites(postId, imageUrl, caption);
+    Alert.alert("Favorited", "Added to your favorites!");
   };
 
   return (
     <GestureHandlerRootView style={styles.container}>
+      {loading && <ActivityIndicator size="large" color="#00D4B1" />}
       <FlashList
-        data={homeFeed}
-        keyExtractor={(item) => item.id}
+        data={posts}
+        keyExtractor={(item, index) => item.id || `post-${index}`}
         estimatedItemSize={300}
+        onRefresh={() => loadPosts(true)}
+        refreshing={refreshing}
+        onEndReached={() => loadPosts()}
+        onEndReachedThreshold={0.5}
         extraData={captions}
         renderItem={({ item }) => (
           <GestureHandlerRootView>
             <LongPressGestureHandler
-              onHandlerStateChange={({ nativeEvent }) =>
-                toggleCaption(item.id, nativeEvent.state)
-              }
+              onHandlerStateChange={({ nativeEvent }) => toggleCaption(item.id, nativeEvent.state)}
               minDurationMs={500}
             >
-              <TapGestureHandler numberOfTaps={2} onActivated={handleDoubleTap}>
+              <TapGestureHandler
+                numberOfTaps={2}
+                onActivated={() => handleDoubleTap(item.id, item.imageUrl, item.caption)}
+              >
                 <View style={styles.imageWrapper}>
-                  <Image source={{ uri: item.image }} style={styles.image} />
+                  <Image source={{ uri: item.imageUrl }} style={styles.image} />
                   {captions[item.id] && (
                     <View style={styles.captionOverlay}>
                       <Text style={styles.caption}>{item.caption}</Text>
