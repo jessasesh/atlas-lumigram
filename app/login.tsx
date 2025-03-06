@@ -1,33 +1,78 @@
-import React from "react";
-import { View, Text, TextInput, Pressable, Image, StyleSheet } from "react-native";
+import React, { useState } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  Pressable,
+  Image,
+  StyleSheet,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
 import { useRouter } from "expo-router";
+import { useAuth } from "@/AuthProvider";
 
 export default function LoginScreen() {
   const router = useRouter();
+  const { login } = useAuth();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert("Error", "Please enter both email and password.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await login(email, password);
+      router.replace("/(tabs)");
+    } catch (error) {
+      Alert.alert(
+        "Login Failed",
+        "Invalid email or password. Please try again."
+      );
+    }
+    setLoading(false);
+  };
 
   return (
     <View style={styles.container}>
       <Image source={require("@/assets/images/logo.png")} style={styles.logo} />
-
       <Text style={styles.title}>Login</Text>
 
-      <TextInput 
-        placeholder="Email" 
+      <TextInput
+        placeholder="Email"
         placeholderTextColor="#CCCCCC"
-        style={styles.input} 
+        value={email}
+        onChangeText={setEmail}
+        style={styles.input}
+        keyboardType="email-address"
+        autoCapitalize="none"
       />
-      <TextInput 
-        placeholder="Password" 
+      <TextInput
+        placeholder="Password"
         placeholderTextColor="#CCCCCC"
-        secureTextEntry 
-        style={styles.input} 
+        secureTextEntry
+        value={password}
+        onChangeText={setPassword}
+        style={styles.input}
       />
 
-      <Pressable onPress={() => router.replace("/(tabs)")} style={styles.button}>
-        <Text style={styles.buttonText}>Sign in</Text>
+      <Pressable onPress={handleLogin} style={styles.button} disabled={loading}>
+        {loading ? (
+          <ActivityIndicator color="#00052E" />
+        ) : (
+          <Text style={styles.buttonText}>Sign in</Text>
+        )}
       </Pressable>
 
-      <Pressable onPress={() => router.push("/register")} style={styles.secondaryButton}>
+      <Pressable
+        onPress={() => router.push("/register")}
+        style={styles.secondaryButton}
+      >
         <Text style={styles.secondaryButtonText}>Create a new account</Text>
       </Pressable>
     </View>
