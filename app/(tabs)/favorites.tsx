@@ -1,69 +1,81 @@
-import React, { useState } from "react";
-import { View, Text, Image, Alert, StyleSheet, Dimensions } from "react-native";
+import React, { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  Image,
+  ActivityIndicator,
+  StyleSheet,
+  Alert,
+  Dimensions,
+} from "react-native";
 import { FlashList } from "@shopify/flash-list";
 import {
   GestureHandlerRootView,
-  TapGestureHandler,
   LongPressGestureHandler,
   State,
 } from "react-native-gesture-handler";
-import { favoritesFeed } from "../../placeholder";
+import { fetchFavorites } from "@/lib/Firestore";
+import { useAuth } from "@/AuthProvider";
 
 const screenWidth = Dimensions.get("window").width;
 
 export default function FavoritesScreen() {
-  const [visibleCaptions, setVisibleCaptions] = useState<{
-    [key: string]: boolean;
-  }>({});
+  const { user } = useAuth();
+  const [favorites, setFavorites] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const handleLongPress = (id: string, state: number) => {
-    if (state === State.ACTIVE) {
-      setVisibleCaptions((prev) => ({ ...prev, [id]: !prev[id] }));
+  useEffect(() => {
+    loadFavorites();
+  }, []);
+
+  const loadFavorites = async () => {
+    setLoading(true);
+    setErrorMessage(null);
+    try {
+      if (!user) throw new Error("User not authenticated.");
+      const favs = await fetchFavorites(user.uid);
+      if (!favs.length) {
+        setErrorMessage("No favorites yet.");
+      }
+      setFavorites(favs);
+    } catch (error: any) {
+      setErrorMessage(error.message || "Error fetching favorites.");
+      console.error("Error fetching favorites:", error);
     }
+    setLoading(false);
   };
-
-  const handleDoubleTap = () => {
-    Alert.alert(
-      "Double Tap Detected",
-      "This will favorite the image in the next project."
-    );
-  };
-
-  const renderItem = ({
-    item,
-  }: {
-    item: { id: string; image: string; caption: string };
-  }) => (
-    <GestureHandlerRootView>
-      <LongPressGestureHandler
-        onHandlerStateChange={({ nativeEvent }) =>
-          handleLongPress(item.id, nativeEvent.state)
-        }
-        minDurationMs={500}
-      >
-        <TapGestureHandler numberOfTaps={2} onActivated={handleDoubleTap}>
-          <View style={styles.imageWrapper}>
-            <Image source={{ uri: item.image }} style={styles.image} />
-
-            {visibleCaptions[item.id] && (
-              <View style={styles.captionOverlay}>
-                <Text style={styles.captionText}>{item.caption}</Text>
-              </View>
-            )}
-          </View>
-        </TapGestureHandler>
-      </LongPressGestureHandler>
-    </GestureHandlerRootView>
-  );
 
   return (
     <GestureHandlerRootView style={styles.container}>
+      {loading && <ActivityIndicator size="large" color="#00D4B1" />}
+      {errorMessage && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{errorMessage}</Text>
+        </View>
+      )}
       <FlashList
-        data={favoritesFeed}
-        renderItem={renderItem}
-        estimatedItemSize={300}
+        data={favorites}
         keyExtractor={(item) => item.id}
-        extraData={visibleCaptions}
+        estimatedItemSize={300}
+        onRefresh={loadFavorites}
+        refreshing={refreshing}
+        renderItem={({ item }) => (
+          <LongPressGestureHandler
+            onHandlerStateChange={({ nativeEvent }) => {
+              if (nativeEvent.state === State.ACTIVE) {
+                Alert.alert("Caption", item.caption);
+              }
+            }}
+            minDurationMs={500}
+          >
+            <View style={styles.post}>
+              <Image source={{ uri: item.imageUrl }} style={styles.image} />
+              <Text style={styles.caption}>{item.caption}</Text>
+            </View>
+          </LongPressGestureHandler>
+        )}
       />
     </GestureHandlerRootView>
   );
@@ -74,30 +86,31 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: "#f8f8f8",
   },
-  imageWrapper: {
+  post: {
     backgroundColor: "#fff",
-    borderRadius: 12,
-    overflow: "hidden",
-    marginVertical: 10,
-    alignSelf: "center",
+    padding: 10,
+    margin: 10,
+    borderRadius: 10,
+    alignItems: "center",
     width: screenWidth * 0.9,
   },
   image: {
     width: "100%",
     height: 250,
     borderRadius: 12,
+    resizeMode: "cover",
   },
-  captionOverlay: {
-    position: "absolute",
-    bottom: 0,
-    width: "100%",
-    backgroundColor: "rgba(0, 0, 0, 0.6)",
-    paddingVertical: 10,
-    alignItems: "center",
-  },
-  captionText: {
-    color: "#fff",
+  caption: {
+    marginTop: 10,
     fontSize: 14,
     fontWeight: "bold",
+  },
+  errorContainer: {
+    alignItems: "center",
+    marginTop: 20,
+  },
+  errorText: {
+    fontSize: 16,
+    color: "red",
   },
 });
